@@ -1,70 +1,443 @@
-# Getting Started with Create React App
+ npm init -y
+npm install express mongoose cors
+(backend) mkdir routes controllers db models videos
+(frontend ) npx create-react-app .
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+//components
+/JobForm.js
+import React, { useState, useEffect } from 'react';
+import '../styles/JobForm.css';
 
-## Available Scripts
+const JobForm = ({ onSubmit, selectedJob }) => {
+  const [form, setForm] = useState({ title: '', company: '', location: '' });
 
-In the project directory, you can run:
+  useEffect(() => {
+    if (selectedJob) {
+      setForm({
+        title: selectedJob.title,
+        company: selectedJob.company,
+        location: selectedJob.location,
+      });
+    } else {
+      setForm({ title: '', company: '', location: '' });
+    }
+  }, [selectedJob]);
 
-### `npm start`
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!form.title || !form.company || !form.location) {
+      alert('All fields are required.');
+      return;
+    }
+    onSubmit(form);
+    setForm({ title: '', company: '', location: '' }); // Reset
+  };
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+  return (
+    <div className="job-form card">
+      <h3 className="section-title">{selectedJob ? 'Edit Job' : 'Add Job'}</h3>
+      <form onSubmit={handleSubmit} className="form-grid">
+        <input
+          name="title"
+          value={form.title}
+          onChange={handleChange}
+          placeholder="Job Title"
+          className="form-input"
+        />
+        <input
+          name="company"
+          value={form.company}
+          onChange={handleChange}
+          placeholder="Company"
+          className="form-input"
+        />
+        <input
+          name="location"
+          value={form.location}
+          onChange={handleChange}
+          placeholder="Location"
+          className="form-input"
+        />
+        <div className="form-buttons">
+          <button type="submit" className="btn btn-primary">
+            {selectedJob ? 'Update' : 'Add'} Job
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setForm({ title: '', company: '', location: '' })}
+          >
+            Clear
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
 
-### `npm test`
+export default JobForm;
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+/JobList.js
+import React from 'react';
+import '../styles/JobList.css';
 
-### `npm run build`
+const JobList = ({ jobs, onEdit, onDelete }) => (
+  <div className="job-list card">
+    <h3 className="section-title">Your Applications</h3>
+    <table className="job-table">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Company</th>
+          <th>Location</th>
+          <th>Date Posted</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {jobs.map((job) => (
+          <tr key={job._id}>
+            <td>{job.title}</td>
+            <td>{job.company}</td>
+            <td>{job.location}</td>
+            <td>{new Date(job.date_posted).toLocaleDateString()}</td>
+            <td className="actions">
+              <button className="btn btn-primary" onClick={() => onEdit(job)}>Edit</button>
+              <button className="btn btn-danger" onClick={() => onDelete(job._id)}>Delete</button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+export default JobList;
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+//services
+/JobService.js
+import axios from 'axios';
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+const API = process.env.REACT_APP_API_URL + "/jobs";
 
-### `npm run eject`
+export const getAllJobs = () => axios.get(API);
+export const getJobById = (id) => axios.get(`${API}/${id}`);
+export const addJob = (job) => axios.post(API, job);
+export const updateJob = (id, job) => axios.put(`${API}/${id}`, job);
+export const deleteJob = (id) => axios.delete(`${API}/${id}`);
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+/App.js
+import React, { useEffect, useState } from 'react';
+import { getAllJobs, addJob, updateJob, deleteJob } from './services/JobService';
+import JobList from './components/JobList';
+import JobForm from './components/JobForm';
+import './styles/App.css'; // Su đã tạo rồi nè!
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+function App() {
+  const [jobs, setJobs] = useState([]);
+  const [selectedJob, setSelectedJob] = useState(null);
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+  const fetchJobs = async () => {
+    const res = await getAllJobs();
+    setJobs(res.data);
+  };
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+  useEffect(() => {
+    fetchJobs();
+  }, []);
 
-## Learn More
+  const handleAddOrUpdate = async (jobData) => {
+    if (selectedJob) {
+      await updateJob(selectedJob._id, jobData);
+    } else {
+      await addJob(jobData);
+    }
+    setSelectedJob(null);
+    fetchJobs();
+  };
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+  const handleEdit = (job) => setSelectedJob(job);
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+  const handleDelete = async (id) => {
+    await deleteJob(id);
+    fetchJobs();
+  };
 
-### Code Splitting
+  return (
+    <div className="min-h-screen bg-gradient-to-r from-indigo-600 to-purple-600 p-6">
+      <div className="max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6">
+        <h1 className="text-4xl font-bold text-center text-indigo-600 mb-6">
+          Job Application Tracker
+        </h1>
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+        <JobForm onSubmit={handleAddOrUpdate} selectedJob={selectedJob} />
 
-### Analyzing the Bundle Size
+        <hr className="my-6 border-gray-300" />
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+        <JobList jobs={jobs} onEdit={handleEdit} onDelete={handleDelete} />
+      </div>
+    </div>
+  );
+}
 
-### Making a Progressive Web App
+export default App;
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+//styles 
+/App.css
+/* Base body style */
+body {
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(to bottom right, #f5f7fa, #e4e8f0);
+  min-height: 100vh;
+  padding: 2rem;
+}
 
-### Advanced Configuration
+/* Heading */
+h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #7c3aed;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+h2 {
+  font-size: 1rem;
+  font-weight: 400;
+  text-align: center;
+  color: #6b7280;
+  margin-bottom: 2rem;
+}
 
-### Deployment
+/* Card (Form + List container) */
+.card {
+  background-color: white;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.06);
+}
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+/* Form fields */
+input, select, textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+  outline: none;
+  margin-bottom: 1rem;
+}
 
-### `npm run build` fails to minify
+input:focus, select:focus, textarea:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
+}
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+/* Buttons */
+button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: linear-gradient(to right, #667eea, #764ba2);
+  color: white;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-secondary {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.btn-secondary:hover {
+  background-color: #e5e7eb;
+  transform: translateY(-2px);
+}
+
+/* Search box */
+.search-box {
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid #e5e7eb;
+  background-color: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.search-box input {
+  border: none;
+  outline: none;
+  flex: 1;
+}
+
+/* Icon styling (optional) */
+.icon {
+  color: #9ca3af;
+  font-size: 1.2rem;
+}
+
+/JobForm.css
+.job-form {
+  margin-top: 1rem;
+  padding: 1.5rem;
+  background-color: white;
+  border-radius: 1rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.06);
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #4b5563;
+}
+
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form-input {
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  border: 2px solid #e5e7eb;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.form-input:focus {
+  border-color: #667eea;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.25);
+}
+
+.form-buttons {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.btn {
+  padding: 0.6rem 1.2rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  font-size: 0.9rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background: linear-gradient(to right, #667eea, #764ba2);
+  color: white;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-secondary {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.btn-secondary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+/JobList.css
+
+.job-list {
+  margin-top: 1rem;
+  padding: 1.5rem;
+  background-color: white;
+  border-radius: 1rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.06);
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #4b5563;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.job-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.job-table thead {
+  background-color: #f9fafb;
+}
+
+.job-table th,
+.job-table td {
+  text-align: left;
+  padding: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.job-table tr:hover {
+  background-color: #f3f4f6;
+  transition: background 0.2s ease;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  font-size: 0.85rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background: linear-gradient(to right, #667eea, #764ba2);
+  color: white;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-danger {
+  background: linear-gradient(to right, #ff6b6b, #ff8e8e);
+  color: white;
+}
+
+.btn-danger:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+}
